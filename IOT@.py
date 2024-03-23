@@ -3,13 +3,12 @@ from bmp280 import BMP280
 from smbus2 import SMBus, i2c_msg
 import wiringpi
 import requests
+from time import sleep
+import sys
 
-# Your ThingSpeak channel's Write API Key
-write_api_key = 'ZL61CTS6YTV81QMV'
+write_api_key = '4OOZVKEQL8VQL2JW'
 
-# The base URL for updating a ThingSpeak channel
 base_url = 'https://api.thingspeak.com/update'
-
 
 bus = SMBus(0)
 address = 0x76
@@ -17,11 +16,15 @@ pin = 3
 pin2 = 4
 pin3 = 6
 pin4 = 16
+pinSwitch = 13
+pinSwitch2 = 10
 wiringpi.wiringPiSetup()
 wiringpi.pinMode(pin, 1)
 wiringpi.pinMode(pin2, 1)
 wiringpi.pinMode(pin3, 1)
 wiringpi.pinMode(pin4, 1)
+wiringpi.pinMode(pinSwitch, 0)
+wiringpi.pinMode(pinSwitch2, 0)
 
 bus1 = SMBus(0)
 address1 = 0x23
@@ -50,14 +53,32 @@ data = {
     'api_key': write_api_key,
     'field1': 0,
     'field2': 0,
-    'field3': 0
+    'field3': 0,
+    'field4': 0,
+    'field5': 0,
+    'field6': 0,
 }
 
+deffault_temp= 20
+deffault_light= 600
+deffault_pressure = 1000
 
 while True:
     lux = get_value(bus1, address1)
     bmp280_temperature = bmp280.get_temperature()
     bmp280_pressure = bmp280.get_pressure()
+    if(wiringpi.digitalRead(pinSwitch) == 0):
+        print("Default values increased!")
+        time.sleep(0.5)
+        deffault_pressure += 100
+        deffault_light+= 50
+        deffault_temp += 5
+    if (wiringpi.digitalRead(pinSwitch2) == 0):
+        print("DEfault values decreased!")
+        time.sleep(0.5)
+        deffault_pressure -= 100
+        deffault_light -= 50
+        deffault_temp -= 5
 
     print("Temperature: ", (bmp280_temperature))
     if bmp280_temperature < 0:
@@ -129,10 +150,31 @@ while True:
     wiringpi.digitalWrite(pin2, 0)
     wiringpi.digitalWrite(pin3, 0)
     wiringpi.digitalWrite(pin4, 0)
+
+    if bmp280_temperature > deffault_temp and bmp280_pressure > deffault_pressure and lux > deffault_light:
+        wiringpi.digitalWrite(pin, 1)
+        wiringpi.digitalWrite(pin2, 1)
+        wiringpi.digitalWrite(pin3, 1)
+        wiringpi.digitalWrite(pin4, 1)
+        print("ALl values are above default!")
+    else:
+        wiringpi.digitalWrite(pin, 1)
+        wiringpi.digitalWrite(pin2, 1)
+        print("Not all values are above!")
+
+    wiringpi.digitalWrite(pin, 0)
+    wiringpi.digitalWrite(pin2, 0)
+    wiringpi.digitalWrite(pin3, 0)
+    wiringpi.digitalWrite(pin4, 0)
+
     print("ALL     Temperature: %4.1f, Pressure: %4.1f" % (bmp280_temperature, bmp280_pressure), "{:.2f} Lux".format(lux))
-    data['field1'] = lux;
+    print(deffault_light,"-light  ",deffault_pressure,"-pressure  ",deffault_temp,"-temp")
+    data['field1'] = lux
     data['field2'] = bmp280_temperature
     data['field3'] = bmp280_pressure
+    data['field4'] = deffault_light
+    data['field5'] = deffault_temp
+    data['field6'] = deffault_pressure
     response = requests.get(base_url, params=data)
     time.sleep(1)
 
